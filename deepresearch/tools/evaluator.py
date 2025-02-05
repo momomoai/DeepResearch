@@ -1,12 +1,14 @@
 import json
 import logging
 from typing import Dict, Any, Optional, Tuple
-import google.generativeai as genai
-from google.generativeai.types import GenerateContentResponse, PromptFeedback
+
+from openai import AsyncOpenAI
 
 from ..config import settings, modelConfigs
 from ..types import EvaluationResponse
 from ..utils.token_tracker import TokenTracker
+
+client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
 
 async def evaluate_answer(question: str, answer: str, tracker: Optional[TokenTracker] = None) -> Tuple[EvaluationResponse, int]:
     try:
@@ -42,12 +44,12 @@ Now evaluate this pair:
 Question: {question}
 Answer: {answer}"""
 
-        model = genai.GenerativeModel(
-            model_name=modelConfigs["evaluator"]["model"],
-            generation_config={
-                "temperature": modelConfigs["evaluator"]["temperature"],
-                "response_mime_type": "application/json",
-                "response_schema": {
+        response = await client.chat.completions.create(
+            model=modelConfigs["evaluator"]["model"],
+            temperature=modelConfigs["evaluator"]["temperature"],
+            functions=[{
+                "name": "evaluate_answer",
+                "parameters": {
                     "type": "object",
                     "properties": {
                         "is_definitive": {
@@ -61,14 +63,13 @@ Answer: {answer}"""
                     },
                     "required": ["is_definitive", "reasoning"]
                 }
-            }
+            }],
+            messages=[{"role": "user", "content": prompt}]
         )
         
-        response = await model.generate_content_async(prompt)
-        usage = response.prompt_feedback
         try:
-            json_data = json.loads(response.text)
-        except json.JSONDecodeError as e:
+            json_data = json.loads(response.choices[0].message.function_call.arguments)
+        except (json.JSONDecodeError, AttributeError) as e:
             logging.error("JSON decode error: %s", str(e))
             raise
             
@@ -77,11 +78,10 @@ Answer: {answer}"""
             "reason": json_data["reasoning"]
         })
         
-        tokens = usage.total_token_count if usage else 0
         if tracker:
-            await tracker.track_usage("evaluator", tokens)
+            await tracker.track_usage("evaluator", response)
             
-        return EvaluationResponse(**json_data), tokens
+        return EvaluationResponse(**json_data), response.usage.total_tokens
         
     except Exception as e:
         logging.error("Error in answer evaluation: %s", str(e))

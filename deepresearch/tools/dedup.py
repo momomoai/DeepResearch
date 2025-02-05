@@ -1,12 +1,14 @@
 import json
 import logging
 from typing import Dict, Any, Optional, Tuple, List
-import google.generativeai as genai
-from google.generativeai.types import GenerateContentResponse, PromptFeedback
+
+from openai import AsyncOpenAI
 
 from ..config import settings, modelConfigs
 from ..types import DedupResponse
 from ..utils.token_tracker import TokenTracker
+
+client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
 
 async def dedup_queries(new_queries: List[str], existing_queries: List[str], tracker: Optional[TokenTracker] = None) -> Tuple[List[str], int]:
     try:
@@ -60,12 +62,12 @@ Now with threshold set to 0.2; run FilterSetA on the following:
 SetA: {new_queries}
 SetB: {existing_queries}"""
 
-        model = genai.GenerativeModel(
-            model_name=modelConfigs["dedup"]["model"],
-            generation_config={
-                "temperature": modelConfigs["dedup"]["temperature"],
-                "response_mime_type": "application/json",
-                "response_schema": {
+        response = await client.chat.completions.create(
+            model=modelConfigs["dedup"]["model"],
+            temperature=modelConfigs["dedup"]["temperature"],
+            functions=[{
+                "name": "dedup_queries",
+                "parameters": {
                     "type": "object",
                     "properties": {
                         "think": {
@@ -83,24 +85,22 @@ SetB: {existing_queries}"""
                     },
                     "required": ["think", "unique_queries"]
                 }
-            }
+            }],
+            messages=[{"role": "user", "content": prompt}]
         )
         
-        response = await model.generate_content_async(prompt)
-        usage = response.prompt_feedback
         try:
-            json_data = json.loads(response.text)
-        except json.JSONDecodeError as e:
+            json_data = json.loads(response.choices[0].message.function_call.arguments)
+        except (json.JSONDecodeError, AttributeError) as e:
             logging.error("JSON decode error: %s", str(e))
             raise
             
         logging.info("Dedup: %s", json_data["unique_queries"])
         
-        tokens = usage.total_token_count if usage else 0
         if tracker:
-            await tracker.track_usage("dedup", tokens)
+            await tracker.track_usage("dedup", response)
             
-        return json_data["unique_queries"], tokens
+        return json_data["unique_queries"], response.usage.total_tokens
         
     except Exception as e:
         logging.error("Error in deduplication analysis: %s", str(e))

@@ -1,12 +1,14 @@
 import json
 import logging
 from typing import Dict, Any, Optional, Tuple, List
-import google.generativeai as genai
-from google.generativeai.types import GenerateContentResponse, PromptFeedback
+
+from openai import AsyncOpenAI
 
 from ..config import settings, modelConfigs
 from ..types import KeywordsResponse, SearchAction
 from ..utils.token_tracker import TokenTracker
+
+client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
 
 async def rewrite_query(action: SearchAction, tracker: Optional[TokenTracker] = None) -> Tuple[List[str], int]:
     try:
@@ -39,12 +41,12 @@ Now, process this query:
 Input Query: {action.searchQuery}
 Intention: {action.think}"""
 
-        model = genai.GenerativeModel(
-            model_name=modelConfigs["queryRewriter"]["model"],
-            generation_config={
-                "temperature": modelConfigs["queryRewriter"]["temperature"],
-                "response_mime_type": "application/json",
-                "response_schema": {
+        response = await client.chat.completions.create(
+            model=modelConfigs["queryRewriter"]["model"],
+            temperature=modelConfigs["queryRewriter"]["temperature"],
+            functions=[{
+                "name": "rewrite_query",
+                "parameters": {
                     "type": "object",
                     "properties": {
                         "think": {
@@ -64,24 +66,22 @@ Intention: {action.think}"""
                     },
                     "required": ["think", "queries"]
                 }
-            }
+            }],
+            messages=[{"role": "user", "content": prompt}]
         )
         
-        response = await model.generate_content_async(prompt)
-        usage = response.prompt_feedback
         try:
-            json_data = json.loads(response.text)
-        except json.JSONDecodeError as e:
+            json_data = json.loads(response.choices[0].message.function_call.arguments)
+        except (json.JSONDecodeError, AttributeError) as e:
             logging.error("JSON decode error: %s", str(e))
             raise
             
         logging.info("Query rewriter: %s", json_data["queries"])
         
-        tokens = usage.total_token_count if usage else 0
         if tracker:
-            await tracker.track_usage("query-rewriter", tokens)
+            await tracker.track_usage("query-rewriter", response)
             
-        return json_data["queries"], tokens
+        return json_data["queries"], response.usage.total_tokens
         
     except Exception as e:
         logging.error("Error in query rewriting: %s", str(e))

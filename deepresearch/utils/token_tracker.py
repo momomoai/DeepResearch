@@ -1,5 +1,6 @@
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
+from openai.types.chat import ChatCompletion
 from ..types import TokenUsage
 
 class TokenTracker:
@@ -7,7 +8,9 @@ class TokenTracker:
         self.usages: List[TokenUsage] = []
         self.budget = budget
 
-    async def track_usage(self, tool: str, tokens: int) -> None:
+    async def track_usage(self, tool: str, usage: Union[ChatCompletion, int]) -> None:
+        tokens = usage.usage.total_tokens if isinstance(usage, ChatCompletion) else usage
+
         current_total = self.get_total_usage()
         if self.budget and current_total + tokens > self.budget:
             logging.error(f"Token budget exceeded: {current_total + tokens} > {self.budget}")

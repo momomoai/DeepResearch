@@ -1,11 +1,11 @@
 import asyncio
 import uuid
-from typing import Dict, AsyncGenerator, Any
+from typing import Dict, AsyncGenerator, Any, Optional, Union
 
-import google.generativeai as genai
-from google.generativeai.types import GenerateContentResponse, Model
+from openai import AsyncOpenAI
+from openai.types.chat import ChatCompletion
 
-from .config import settings
+from .config import settings, modelConfigs
 from .types import QueryRequest, QueryResponse, BaseAction
 from .utils.token_tracker import TokenTracker
 from .utils.action_tracker import ActionTracker
@@ -19,11 +19,10 @@ from .tools.dedup import dedup_queries
 
 class Agent:
     def __init__(self):
-        genai.configure(api_key=settings.GOOGLE_API_KEY)
+        self.client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
         self.token_tracker = TokenTracker()
         self.action_tracker = ActionTracker()
         self.tasks: Dict[str, QueryResponse] = {}
-        self.model = genai.GenerativeModel(model_name="gemini-pro")
         
         # Initialize search function
         self.search = jina_search if settings.SEARCH_PROVIDER == "jina" else brave_search
@@ -64,10 +63,10 @@ class Agent:
         self,
         request_id: str,
         query: str,
-        budget: Optional[int] = None,
-        max_bad_attempt: Optional[int] = None,
-        token_tracker: Optional[TokenTracker] = None,
-        action_tracker: Optional[ActionTracker] = None
+        budget: int | None = None,
+        max_bad_attempt: int | None = None,
+        token_tracker: TokenTracker | None = None,
+        action_tracker: ActionTracker | None = None
     ) -> None:
         task = self.tasks[request_id]
         try:
@@ -88,8 +87,12 @@ class Agent:
         task = self.tasks[request_id]
         try:
             # Initial query processing
-            response = await self.model.generate_content_async(request.query)
-            return response.text
+            response = await self.client.chat.completions.create(
+                model=modelConfigs["evaluator"]["model"],
+                messages=[{"role": "user", "content": request.query}],
+                temperature=modelConfigs["evaluator"]["temperature"]
+            )
+            return response.choices[0].message.content
         except Exception as e:
             task.status = "error"
             task.final_answer = str(e)
