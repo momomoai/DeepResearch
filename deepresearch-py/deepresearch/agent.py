@@ -3,18 +3,19 @@ import uuid
 from typing import Dict, AsyncGenerator, Any
 
 import google.generativeai as genai
+from google.generativeai.types import GenerateContentResponse, Model
 
 from .config import settings
 from .types import QueryRequest, QueryResponse, BaseAction
 from .utils.token_tracker import TokenTracker
 from .utils.action_tracker import ActionTracker
-from .tools.jina_search import JinaSearch
-from .tools.brave_search import BraveSearch
-from .tools.read import Reader
-from .tools.evaluator import Evaluator
-from .tools.error_analyzer import ErrorAnalyzer
-from .tools.query_rewriter import QueryRewriter
-from .tools.dedup import Deduplicator
+from .tools.jina_search import search as jina_search
+from .tools.brave_search import search as brave_search
+from .tools.read import read_url
+from .tools.evaluator import evaluate_answer
+from .tools.error_analyzer import analyze_steps
+from .tools.query_rewriter import rewrite_query
+from .tools.dedup import dedup_queries
 
 class Agent:
     def __init__(self):
@@ -22,14 +23,10 @@ class Agent:
         self.token_tracker = TokenTracker()
         self.action_tracker = ActionTracker()
         self.tasks: Dict[str, QueryResponse] = {}
+        self.model = genai.GenerativeModel(model_name="gemini-pro")
         
-        # Initialize tools
-        self.search = JinaSearch() if settings.SEARCH_PROVIDER == "jina" else BraveSearch()
-        self.reader = Reader()
-        self.evaluator = Evaluator()
-        self.error_analyzer = ErrorAnalyzer()
-        self.query_rewriter = QueryRewriter()
-        self.deduplicator = Deduplicator()
+        # Initialize search function
+        self.search = jina_search if settings.SEARCH_PROVIDER == "jina" else brave_search
 
     async def start_query(self, request: QueryRequest) -> str:
         request_id = str(uuid.uuid4())
@@ -63,13 +60,37 @@ class Agent:
             raise ValueError("Invalid request ID")
         return self.tasks[request_id]
 
-    async def _process_query(self, request_id: str, request: QueryRequest) -> None:
+    async def process_query(
+        self,
+        request_id: str,
+        query: str,
+        budget: Optional[int] = None,
+        max_bad_attempt: Optional[int] = None,
+        token_tracker: Optional[TokenTracker] = None,
+        action_tracker: Optional[ActionTracker] = None
+    ) -> None:
         task = self.tasks[request_id]
         try:
-            # Query processing logic will be implemented here
-            pass
+            if token_tracker:
+                self.token_tracker = token_tracker
+            if action_tracker:
+                self.action_tracker = action_tracker
+                
+            # Process query using tools
+            result = await self._process_query(request_id, QueryRequest(query=query))
+            task.final_answer = result
+            task.status = "completed"
         except Exception as e:
             task.status = "error"
             task.final_answer = str(e)
-        else:
-            task.status = "completed"
+            
+    async def _process_query(self, request_id: str, request: QueryRequest) -> str:
+        task = self.tasks[request_id]
+        try:
+            # Initial query processing
+            response = await self.model.generate_content_async(request.query)
+            return response.text
+        except Exception as e:
+            task.status = "error"
+            task.final_answer = str(e)
+            raise

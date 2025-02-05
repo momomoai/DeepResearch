@@ -1,10 +1,10 @@
 from typing import Dict, List, Any, Optional
-from ..types import AnswerAction
+from ..types import AnswerAction, ActionType
 
 class ActionState:
     def __init__(self):
         self.this_step: AnswerAction = AnswerAction(
-            action="answer",
+            action=ActionType.ANSWER,
             answer="",
             references=[],
             think=""

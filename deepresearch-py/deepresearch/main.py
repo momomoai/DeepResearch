@@ -29,12 +29,12 @@ class QueryBody(BaseModel):
     maxBadAttempt: Optional[int] = None
 
 # Store trackers for each request
-trackers: Dict[str, Dict[str, TokenTracker | ActionTracker]] = {}
+trackers: Dict[str, Dict[str, Any]] = {}
 
 def create_progress_message(request_id: str, budget: Optional[int] = None) -> StreamMessage:
     context = trackers[request_id]
-    token_tracker: TokenTracker = context["token_tracker"]
-    action_tracker: ActionTracker = context["action_tracker"]
+    token_tracker = context["token_tracker"]
+    action_tracker = context["action_tracker"]
     
     state = action_tracker.get_state()
     budget_info = {
@@ -106,7 +106,10 @@ async def stream(request_id: str, request: Request) -> EventSourceResponse:
             async for event in agent.stream_events(request_id):
                 if await request.is_disconnected():
                     break
-                yield {"data": event.model_dump()}
+                if isinstance(event, dict):
+                    yield {"data": event}
+                else:
+                    yield {"data": event.model_dump()}
                 
         except Exception as e:
             yield {

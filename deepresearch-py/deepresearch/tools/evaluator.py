@@ -1,6 +1,8 @@
+import json
 import logging
 from typing import Dict, Any, Optional, Tuple
 import google.generativeai as genai
+from google.generativeai.types import GenerateContentResponse, PromptFeedback
 
 from ..config import settings, modelConfigs
 from ..types import EvaluationResponse
@@ -41,7 +43,7 @@ Question: {question}
 Answer: {answer}"""
 
         model = genai.GenerativeModel(
-            model=modelConfigs["evaluator"]["model"],
+            model_name=modelConfigs["evaluator"]["model"],
             generation_config={
                 "temperature": modelConfigs["evaluator"]["temperature"],
                 "response_mime_type": "application/json",
@@ -62,11 +64,14 @@ Answer: {answer}"""
             }
         )
         
-        result = await model.generate_content_async(prompt)
-        response = result.response
-        usage = response.usage_metadata
-        json_data = response.json()
-        
+        response = await model.generate_content_async(prompt)
+        usage = response.prompt_feedback
+        try:
+            json_data = json.loads(response.text)
+        except json.JSONDecodeError as e:
+            logging.error("JSON decode error: %s", str(e))
+            raise
+            
         logging.info("Evaluation: %s", {
             "definitive": json_data["is_definitive"],
             "reason": json_data["reasoning"]

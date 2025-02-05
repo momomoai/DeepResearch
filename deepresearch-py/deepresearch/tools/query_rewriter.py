@@ -1,6 +1,8 @@
+import json
 import logging
 from typing import Dict, Any, Optional, Tuple, List
 import google.generativeai as genai
+from google.generativeai.types import GenerateContentResponse, PromptFeedback
 
 from ..config import settings, modelConfigs
 from ..types import KeywordsResponse, SearchAction
@@ -38,7 +40,7 @@ Input Query: {action.searchQuery}
 Intention: {action.think}"""
 
         model = genai.GenerativeModel(
-            model=modelConfigs["queryRewriter"]["model"],
+            model_name=modelConfigs["queryRewriter"]["model"],
             generation_config={
                 "temperature": modelConfigs["queryRewriter"]["temperature"],
                 "response_mime_type": "application/json",
@@ -65,11 +67,14 @@ Intention: {action.think}"""
             }
         )
         
-        result = await model.generate_content_async(prompt)
-        response = result.response
-        usage = response.usage_metadata
-        json_data = response.json()
-        
+        response = await model.generate_content_async(prompt)
+        usage = response.prompt_feedback
+        try:
+            json_data = json.loads(response.text)
+        except json.JSONDecodeError as e:
+            logging.error("JSON decode error: %s", str(e))
+            raise
+            
         logging.info("Query rewriter: %s", json_data["queries"])
         
         tokens = usage.total_token_count if usage else 0

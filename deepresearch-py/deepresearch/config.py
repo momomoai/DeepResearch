@@ -30,4 +30,7 @@ modelConfigs = {
     }
 }
 
-settings = Settings()
+try:
+    settings = Settings(_env_file=".env")
+except Exception as e:
+    settings = Settings()
