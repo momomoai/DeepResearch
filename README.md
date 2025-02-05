@@ -25,11 +25,13 @@ flowchart LR
 
 ## Install
 
-We use Gemini for LLM and [Jina Reader](https://jina.ai/reader) for searching and reading webpages.
+We use OpenAI GPT-4o for LLM and [Jina Reader](https://jina.ai/reader) for searching and reading webpages.
 
 ```bash
 # Get API keys
-export GEMINI_API_KEY=...  # for Gemini API, ask han
+export OPENAI_API_KEY=...  # OpenAI API key
+export OPENAI_BASE_URL=...  # OpenAI API base URL (optional)
+export OPENAI_MODEL=gpt-4o  # OpenAI model name
 export JINA_API_KEY=jina_...  # free Jina API key, get from https://jina.ai/reader
 
 # Install with Poetry
@@ -142,7 +144,9 @@ docker build -t deepresearch:latest -f deepresearch-py/Dockerfile .
 To run the Docker container, use the following command:
 ```bash
 docker run -p 3000:3000 \
-  --env GEMINI_API_KEY=your_gemini_api_key \
+  --env OPENAI_API_KEY=your_openai_api_key \
+  --env OPENAI_BASE_URL=your_openai_base_url \
+  --env OPENAI_MODEL=gpt-4o \
   --env JINA_API_KEY=your_jina_api_key \
   deepresearch:latest
 ```

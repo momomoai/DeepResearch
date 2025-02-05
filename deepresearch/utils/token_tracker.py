@@ -9,7 +9,7 @@ class TokenTracker:
         self.budget = budget
 
     async def track_usage(self, tool: str, usage: Union[ChatCompletion, int]) -> None:
-        tokens = usage.usage.total_tokens if isinstance(usage, ChatCompletion) else usage
+        tokens = usage.usage.total_tokens if isinstance(usage, ChatCompletion) else int(usage)
 
         current_total = self.get_total_usage()
         if self.budget and current_total + tokens > self.budget:

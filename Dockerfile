@@ -1,28 +1,29 @@
-# Use Node.js 20 as the base image
-FROM node:20
+# Use Python 3.12 as the base image
+FROM python:3.12-slim
 
 # Set the working directory
 WORKDIR /app
 
-# Copy package.json and package-lock.json
-COPY package*.json ./
+# Install Poetry
+RUN pip install poetry
 
-# Install dependencies
-RUN npm install
+# Copy Poetry configuration
+COPY pyproject.toml poetry.lock ./
 
 # Copy the application code
 COPY . .
 
-# Set environment variables
-ENV GEMINI_API_KEY=${GEMINI_API_KEY}
-ENV JINA_API_KEY=${JINA_API_KEY}
-ENV BRAVE_API_KEY=${BRAVE_API_KEY}
+# Install dependencies
+RUN poetry install --no-dev
 
-# Build the application
-RUN npm run build
+# Set environment variables
+ENV OPENAI_API_KEY=${OPENAI_API_KEY}
+ENV OPENAI_BASE_URL=${OPENAI_BASE_URL}
+ENV OPENAI_MODEL=gpt-4o
+ENV JINA_API_KEY=${JINA_API_KEY}
 
 # Expose the port the app runs on
 EXPOSE 3000
 
 # Set the default command to run the application
-CMD ["npm", "run", "serve"]
+CMD ["poetry", "run", "uvicorn", "deepresearch.main:app", "--host", "0.0.0.0", "--port", "3000"]
