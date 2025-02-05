@@ -25,22 +25,23 @@ flowchart LR
 
 ## Install
 
-We use gemini for llm, [jina reader](https://jina.ai/reader) for searching and reading webpages. 
+We use Gemini for LLM and [Jina Reader](https://jina.ai/reader) for searching and reading webpages.
 
 ```bash
-export GEMINI_API_KEY=...  # for gemini api, ask han
-export JINA_API_KEY=jina_...  # free jina api key, get from https://jina.ai/reader
+# Get API keys
+export GEMINI_API_KEY=...  # for Gemini API, ask han
+export JINA_API_KEY=jina_...  # free Jina API key, get from https://jina.ai/reader
 
-git clone https://github.com/jina-ai/node-DeepResearch.git
-cd node-DeepResearch
-npm install
+# Install with Poetry
+git clone https://github.com/momomoai/DeepResearch.git
+cd DeepResearch/deepresearch-py
+poetry install
 ```
-
 
 ## Usage
 
 ```bash
-npm run dev $QUERY
+poetry run python -m deepresearch.main "your query here"
 ```
 
 ## Demo
@@ -62,30 +63,30 @@ Query: `"who will be the biggest competitor of Jina AI"`
 
 More examples:
 
-```
+```bash
 # example: no tool calling 
-npm run dev "1+1="
-npm run dev "what is the capital of France?"
+poetry run python -m deepresearch.main "1+1="
+poetry run python -m deepresearch.main "what is the capital of France?"
 
 # example: 2-step
-npm run dev "what is the latest news from Jina AI?"
+poetry run python -m deepresearch.main "what is the latest news from Jina AI?"
 
 # example: 3-step
-npm run dev "what is the twitter account of jina ai's founder"
+poetry run python -m deepresearch.main "what is the twitter account of jina ai's founder"
 
-# example: 13-step, ambiguious question (no def of "big")
-npm run dev "who is bigger? cohere, jina ai, voyage?"
+# example: 13-step, ambiguous question (no def of "big")
+poetry run python -m deepresearch.main "who is bigger? cohere, jina ai, voyage?"
 
 # example: open question, research-like, long chain of thoughts
-npm run dev "who will be president of US in 2028?"
-npm run dev "what should be jina ai strategy for 2025?"
+poetry run python -m deepresearch.main "who will be president of US in 2028?"
+poetry run python -m deepresearch.main "what should be jina ai strategy for 2025?"
 ```
 
 ## Web Server API
 
-Start the server:
+Start the FastAPI server:
 ```bash
-npm run serve
+poetry run uvicorn deepresearch.main:app --host 0.0.0.0 --port 3000
 ```
 
 The server will start on http://localhost:3000 with the following endpoints:
@@ -134,13 +135,16 @@ data: {"type":"progress","trackers":{"tokenUsage":88096,"tokenBreakdown":{"agent
 ### Build Docker Image
 To build the Docker image for the application, run the following command:
 ```bash
-docker build -t deepresearch:latest .
+docker build -t deepresearch:latest -f deepresearch-py/Dockerfile .
 ```
 
 ### Run Docker Container
 To run the Docker container, use the following command:
 ```bash
-docker run -p 3000:3000 --env GEMINI_API_KEY=your_gemini_api_key --env JINA_API_KEY=your_jina_api_key --env BRAVE_API_KEY=your_brave_api_key deepresearch:latest
+docker run -p 3000:3000 \
+  --env GEMINI_API_KEY=your_gemini_api_key \
+  --env JINA_API_KEY=your_jina_api_key \
+  deepresearch:latest
 ```
 
 ### Docker Compose
