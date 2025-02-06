@@ -1,3 +1,3 @@
-~disable answer after bad attempts for 1 step~
-~into the beast mode when all attempts failed or token budget is exhausted, disable all actions but answer~
-XMLize the prompt
+[] 输出中间结果
+[] 支持callback回调
+[] 支持配置报告的输出语言
