@@ -9,8 +9,8 @@ from .config import settings, modelConfigs
 from .types import QueryRequest, QueryResponse, BaseAction
 from .utils.token_tracker import TokenTracker
 from .utils.action_tracker import ActionTracker
-from .tools.jina_search import search as jina_search
-from .tools.brave_search import search as brave_search
+from .tools.jina_search import JinaSearch
+from .tools.brave_search import BraveSearch
 from .tools.read import read_url
 from .tools.evaluator import evaluate_answer
 from .tools.error_analyzer import analyze_steps
@@ -25,7 +25,7 @@ class Agent:
         self.tasks: Dict[str, QueryResponse] = {}
         
         # Initialize search function
-        self.search = jina_search if settings.SEARCH_PROVIDER == "jina" else brave_search
+        self.search = JinaSearch.search if settings.SEARCH_PROVIDER == "jina" else BraveSearch.search
 
     async def start_query(self, request: QueryRequest) -> str:
         request_id = str(uuid.uuid4())
