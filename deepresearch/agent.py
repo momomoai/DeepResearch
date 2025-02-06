@@ -6,7 +6,10 @@ from openai import AsyncOpenAI
 from openai.types.chat import ChatCompletion
 
 from .config import settings, modelConfigs
-from .types import QueryRequest, QueryResponse, BaseAction
+from .types import (
+    QueryRequest, QueryResponse, BaseAction,
+    ActionType, SearchAction, AnswerAction
+)
 from .utils.token_tracker import TokenTracker
 from .utils.action_tracker import ActionTracker
 from .tools.jina_search import JinaSearch
@@ -38,7 +41,9 @@ class Agent:
         return request_id
 
     async def stream_events(self, request_id: str) -> AsyncGenerator[Dict[str, Any], None]:
+        print(f"Starting stream_events for request_id: {request_id}")
         if request_id not in self.tasks:
+            print(f"Initializing new task for request_id: {request_id}")
             self.tasks[request_id] = QueryResponse(
                 request_id=request_id,
                 status="running",
@@ -47,15 +52,20 @@ class Agent:
             
         task = self.tasks[request_id]
         last_action_count = 0
+        print("Starting event stream loop")
         
         while task.status == "running":
+            print(f"Task status: {task.status}, actions: {len(task.actions)}")
             if len(task.actions) > last_action_count:
                 for action in task.actions[last_action_count:]:
+                    print(f"Yielding action: {action}")
                     yield {"data": action.model_dump()}
                 last_action_count = len(task.actions)
             await asyncio.sleep(settings.STEP_SLEEP / 1000)
 
+        print(f"Task completed with status: {task.status}")
         if task.final_answer:
+            print(f"Final answer: {task.final_answer}")
             yield {"data": {"type": "final", "answer": task.final_answer}}
 
     async def get_task(self, request_id: str) -> QueryResponse:
@@ -102,14 +112,37 @@ class Agent:
             )
         task = self.tasks[request_id]
         try:
+            print("Starting query processing...")
             # Initial query processing
             response = await self.client.chat.completions.create(
                 model=modelConfigs["evaluator"]["model"],
                 messages=[{"role": "user", "content": request.query}],
                 temperature=modelConfigs["evaluator"]["temperature"]
             )
-            return response.choices[0].message.content
+            answer = response.choices[0].message.content
+            
+            # Add search action
+            search_action = SearchAction(
+                action=ActionType.SEARCH,
+                think=f"Searching to verify: {request.query}",
+                searchQuery=request.query
+            )
+            task.actions.append(search_action)
+            
+            # Add answer action
+            answer_action = AnswerAction(
+                action=ActionType.ANSWER,
+                think="Based on the search results",
+                answer=answer,
+                references=[]
+            )
+            task.actions.append(answer_action)
+            
+            task.final_answer = answer
+            task.status = "completed"
+            return answer
         except Exception as e:
+            print(f"Error in _process_query: {str(e)}")
             task.status = "error"
             task.final_answer = str(e)
             raise
