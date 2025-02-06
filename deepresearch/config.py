@@ -11,19 +11,19 @@ class Settings(BaseSettings):
 
 modelConfigs = {
     "evaluator": {
-        "model": "gpt-4o",
+        "model": "deepseek-ai/DeepSeek-V3",
         "temperature": 0.1
     },
     "errorAnalyzer": {
-        "model": "gpt-4o",
+        "model": "deepseek-ai/DeepSeek-V3",
         "temperature": 0.1
     },
     "queryRewriter": {
-        "model": "gpt-4o",
+        "model": "deepseek-ai/DeepSeek-V3",
         "temperature": 0.7
     },
     "dedup": {
-        "model": "gpt-4o",
+        "model": "deepseek-ai/DeepSeek-V3",
         "temperature": 0.1
     }
 }
