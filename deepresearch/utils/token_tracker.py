@@ -8,9 +8,7 @@ class TokenTracker:
         self.usages: List[TokenUsage] = []
         self.budget = budget
 
-    async def track_usage(self, tool: str, usage: Union[ChatCompletion, int]) -> None:
-        tokens = usage.usage.total_tokens if isinstance(usage, ChatCompletion) else int(usage)
-
+    def add_usage(self, tool: str, tokens: int) -> None:
         current_total = self.get_total_usage()
         if self.budget and current_total + tokens > self.budget:
             logging.error(f"Token budget exceeded: {current_total + tokens} > {self.budget}")
@@ -18,6 +16,10 @@ class TokenTracker:
 
         if not self.budget or current_total + tokens <= self.budget:
             self.usages.append(TokenUsage(tool=tool, tokens=tokens))
+
+    async def track_usage(self, tool: str, usage: Union[ChatCompletion, int]) -> None:
+        tokens = usage.usage.total_tokens if isinstance(usage, ChatCompletion) else int(usage)
+        self.add_usage(tool, tokens)
 
     def get_total_usage(self) -> int:
         return sum(usage.tokens for usage in self.usages)
