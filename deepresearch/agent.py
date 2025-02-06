@@ -39,7 +39,11 @@ class Agent:
 
     async def stream_events(self, request_id: str) -> AsyncGenerator[Dict[str, Any], None]:
         if request_id not in self.tasks:
-            raise ValueError("Invalid request ID")
+            self.tasks[request_id] = QueryResponse(
+                request_id=request_id,
+                status="running",
+                actions=[]
+            )
             
         task = self.tasks[request_id]
         last_action_count = 0
