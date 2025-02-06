@@ -42,9 +42,7 @@ class Agent:
         return request_id
 
     async def stream_events(self, request_id: str) -> AsyncGenerator[Dict[str, Any], None]:
-        print(f"Starting stream_events for request_id: {request_id}")
         if request_id not in self.tasks:
-            print(f"Initializing new task for request_id: {request_id}")
             self.tasks[request_id] = QueryResponse(
                 request_id=request_id,
                 status="running",
@@ -53,21 +51,63 @@ class Agent:
             
         task = self.tasks[request_id]
         last_action_count = 0
-        print("Starting event stream loop")
+        
+        # Send initial state
+        yield {
+            "type": "progress",
+            "trackers": {
+                "tokenUsage": self.token_tracker.get_total_usage(),
+                "tokenBreakdown": {
+                    "agent": self.token_tracker.get_usage("agent"),
+                    "read": self.token_tracker.get_usage("read")
+                },
+                "actionState": {
+                    "action": "search",
+                    "think": "",
+                    "URLTargets": [],
+                    "answer": "",
+                    "questionsToAnswer": [],
+                    "references": [],
+                    "searchQuery": ""
+                },
+                "step": 0,
+                "badAttempts": 0,
+                "gaps": []
+            }
+        }
         
         while task.status == "running":
-            print(f"Task status: {task.status}, actions: {len(task.actions)}")
             if len(task.actions) > last_action_count:
                 for action in task.actions[last_action_count:]:
-                    print(f"Yielding action: {action}")
-                    yield {"data": action.model_dump()}
+                    yield {
+                        "type": "progress",
+                        "trackers": {
+                            "tokenUsage": self.token_tracker.get_total_usage(),
+                            "tokenBreakdown": {
+                                "agent": self.token_tracker.get_usage("agent"),
+                                "read": self.token_tracker.get_usage("read")
+                            },
+                            "actionState": action.model_dump(),
+                            "step": len(task.actions),
+                            "badAttempts": 0,
+                            "gaps": []
+                        }
+                    }
                 last_action_count = len(task.actions)
             await asyncio.sleep(settings.STEP_SLEEP / 1000)
 
-        print(f"Task completed with status: {task.status}")
         if task.final_answer:
-            print(f"Final answer: {task.final_answer}")
-            yield {"data": {"type": "final", "answer": task.final_answer}}
+            yield {
+                "type": "final",
+                "answer": task.final_answer,
+                "trackers": {
+                    "tokenUsage": self.token_tracker.get_total_usage(),
+                    "tokenBreakdown": {
+                        "agent": self.token_tracker.get_usage("agent"),
+                        "read": self.token_tracker.get_usage("read")
+                    }
+                }
+            }
 
     async def get_task(self, request_id: str) -> QueryResponse:
         if request_id not in self.tasks:
