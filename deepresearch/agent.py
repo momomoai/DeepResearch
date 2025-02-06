@@ -11,11 +11,11 @@ from .utils.token_tracker import TokenTracker
 from .utils.action_tracker import ActionTracker
 from .tools.jina_search import JinaSearch
 from .tools.brave_search import BraveSearch
-from .tools.read import read_url
-from .tools.evaluator import evaluate_answer
-from .tools.error_analyzer import analyze_steps
-from .tools.query_rewriter import rewrite_query
-from .tools.dedup import dedup_queries
+from .tools.read import Reader
+from .tools.evaluator import Evaluator
+from .tools.error_analyzer import ErrorAnalyzer
+from .tools.query_rewriter import QueryRewriter
+from .tools.dedup import Deduplicator
 
 class Agent:
     def __init__(self):

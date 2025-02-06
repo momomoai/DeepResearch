@@ -64,33 +64,33 @@ Now with threshold set to 0.2; run FilterSetA on the following:
 SetA: {new_queries}
 SetB: {existing_queries}"""
 
-        response = await Deduplicator.client.chat.completions.create(
-            model=modelConfigs["dedup"]["model"],
-            temperature=modelConfigs["dedup"]["temperature"],
-            functions=[{
-                "name": "dedup_queries",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "think": {
-                            "type": "string",
-                            "description": "Strategic reasoning about the overall deduplication approach"
-                        },
-                        "unique_queries": {
-                            "type": "array",
-                            "items": {
+            response = await Deduplicator.client.chat.completions.create(
+                model=modelConfigs["dedup"]["model"],
+                temperature=modelConfigs["dedup"]["temperature"],
+                functions=[{
+                    "name": "dedup_queries",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "think": {
                                 "type": "string",
-                                "description": "Unique query that passed the deduplication process, must be less than 30 characters"
+                                "description": "Strategic reasoning about the overall deduplication approach"
                             },
-                            "description": "Array of semantically unique queries"
-                        }
-                    },
-                    "required": ["think", "unique_queries"]
-                }
-            }],
-            messages=[{"role": "user", "content": prompt}]
-        )
-        
+                            "unique_queries": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string",
+                                    "description": "Unique query that passed the deduplication process, must be less than 30 characters"
+                                },
+                                "description": "Array of semantically unique queries"
+                            }
+                        },
+                        "required": ["think", "unique_queries"]
+                    }
+                }],
+                messages=[{"role": "user", "content": prompt}]
+            )
+
             json_data = json.loads(response.choices[0].message.function_call.arguments)
             logging.info("Dedup: %s", json_data["unique_queries"])
             
@@ -98,7 +98,7 @@ SetB: {existing_queries}"""
                 await tracker.track_usage("dedup", response)
             
             return json_data["unique_queries"], response.usage.total_tokens
-        
+
         except Exception as e:
             logging.error("Error in deduplication analysis: %s", str(e))
             raise
