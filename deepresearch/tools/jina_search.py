@@ -23,13 +23,19 @@ class JinaSearch:
                     json={"query": query}
                 )
                 response_data = response.json()
-                response_obj = SearchResponse(**response_data)
-                
-                if response_obj.code == 402:
-                    raise ValueError(response_obj.readableMessage or "Insufficient balance")
-                    
-                if not response_obj.data:
-                    raise ValueError("Invalid response data")
+                if response.status_code == 404:
+                    response_obj = SearchResponse(
+                        code=404,
+                        status=404,
+                        data=[],
+                        message=response_data.get('detail', 'Not Found')
+                    )
+                else:
+                    response_obj = SearchResponse(**response_data)
+                    if response_obj.code == 402:
+                        raise ValueError(response_obj.readableMessage or "Insufficient balance")
+                    if not response_obj.data:
+                        raise ValueError("Invalid response data")
                     
                 logging.info("Jina search: %s", {
                     "query": query,
