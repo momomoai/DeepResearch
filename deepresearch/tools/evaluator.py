@@ -8,11 +8,13 @@ from ..config import settings, modelConfigs
 from ..types import EvaluationResponse
 from ..utils.token_tracker import TokenTracker
 
-client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
-
-async def evaluate_answer(question: str, answer: str, tracker: Optional[TokenTracker] = None) -> Tuple[EvaluationResponse, int]:
-    try:
-        prompt = f"""You are an evaluator of answer definitiveness. Analyze if the given answer provides a definitive response or not.
+class Evaluator:
+    client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+    
+    @staticmethod
+    async def evaluate_answer(question: str, answer: str, tracker: Optional[TokenTracker] = None) -> Tuple[EvaluationResponse, int]:
+        try:
+            prompt = f"""You are an evaluator of answer definitiveness. Analyze if the given answer provides a definitive response or not.
 
 Core Evaluation Criterion:
 - Definitiveness: "I don't know", "lack of information", "doesn't exist", "not sure" or highly uncertain/ambiguous responses are **not** definitive, must return false!
@@ -44,45 +46,45 @@ Now evaluate this pair:
 Question: {question}
 Answer: {answer}"""
 
-        response = await client.chat.completions.create(
-            model=modelConfigs["evaluator"]["model"],
-            temperature=modelConfigs["evaluator"]["temperature"],
-            functions=[{
-                "name": "evaluate_answer",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "is_definitive": {
-                            "type": "boolean",
-                            "description": "Whether the answer provides a definitive response without uncertainty or 'I don't know' type statements"
+            response = await Evaluator.client.chat.completions.create(
+                model=modelConfigs["evaluator"]["model"],
+                temperature=modelConfigs["evaluator"]["temperature"],
+                functions=[{
+                    "name": "evaluate_answer",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "is_definitive": {
+                                "type": "boolean",
+                                "description": "Whether the answer provides a definitive response without uncertainty or 'I don't know' type statements"
+                            },
+                            "reasoning": {
+                                "type": "string",
+                                "description": "Explanation of why the answer is or isn't definitive"
+                            }
                         },
-                        "reasoning": {
-                            "type": "string",
-                            "description": "Explanation of why the answer is or isn't definitive"
-                        }
-                    },
-                    "required": ["is_definitive", "reasoning"]
-                }
-            }],
-            messages=[{"role": "user", "content": prompt}]
-        )
-        
-        try:
-            json_data = json.loads(response.choices[0].message.function_call.arguments)
-        except (json.JSONDecodeError, AttributeError) as e:
-            logging.error("JSON decode error: %s", str(e))
+                        "required": ["is_definitive", "reasoning"]
+                    }
+                }],
+                messages=[{"role": "user", "content": prompt}]
+            )
+            
+            try:
+                json_data = json.loads(response.choices[0].message.function_call.arguments)
+            except (json.JSONDecodeError, AttributeError) as e:
+                logging.error("JSON decode error: %s", str(e))
+                raise
+                
+            logging.info("Evaluation: %s", {
+                "definitive": json_data["is_definitive"],
+                "reason": json_data["reasoning"]
+            })
+            
+            if tracker:
+                await tracker.track_usage("evaluator", response)
+                    
+            return EvaluationResponse(**json_data), response.usage.total_tokens
+                
+        except Exception as e:
+            logging.error("Error in answer evaluation: %s", str(e))
             raise
-            
-        logging.info("Evaluation: %s", {
-            "definitive": json_data["is_definitive"],
-            "reason": json_data["reasoning"]
-        })
-        
-        if tracker:
-            await tracker.track_usage("evaluator", response)
-            
-        return EvaluationResponse(**json_data), response.usage.total_tokens
-        
-    except Exception as e:
-        logging.error("Error in answer evaluation: %s", str(e))
-        raise
