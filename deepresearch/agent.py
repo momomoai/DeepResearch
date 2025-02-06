@@ -9,13 +9,13 @@ from .config import settings, modelConfigs
 from .types import QueryRequest, QueryResponse, BaseAction
 from .utils.token_tracker import TokenTracker
 from .utils.action_tracker import ActionTracker
-from .tools.jina_search import search as jina_search
-from .tools.brave_search import search as brave_search
-from .tools.read import read_url
-from .tools.evaluator import evaluate_answer
-from .tools.error_analyzer import analyze_steps
-from .tools.query_rewriter import rewrite_query
-from .tools.dedup import dedup_queries
+from .tools.jina_search import JinaSearch
+from .tools.brave_search import BraveSearch
+from .tools.read import Reader
+from .tools.evaluator import Evaluator
+from .tools.error_analyzer import ErrorAnalyzer
+from .tools.query_rewriter import QueryRewriter
+from .tools.dedup import Deduplicator
 
 class Agent:
     def __init__(self):
@@ -25,7 +25,7 @@ class Agent:
         self.tasks: Dict[str, QueryResponse] = {}
         
         # Initialize search function
-        self.search = jina_search if settings.SEARCH_PROVIDER == "jina" else brave_search
+        self.search = JinaSearch.search if settings.SEARCH_PROVIDER == "jina" else BraveSearch.search
 
     async def start_query(self, request: QueryRequest) -> str:
         request_id = str(uuid.uuid4())
@@ -39,7 +39,11 @@ class Agent:
 
     async def stream_events(self, request_id: str) -> AsyncGenerator[Dict[str, Any], None]:
         if request_id not in self.tasks:
-            raise ValueError("Invalid request ID")
+            self.tasks[request_id] = QueryResponse(
+                request_id=request_id,
+                status="running",
+                actions=[]
+            )
             
         task = self.tasks[request_id]
         last_action_count = 0
@@ -68,12 +72,18 @@ class Agent:
         token_tracker: TokenTracker | None = None,
         action_tracker: ActionTracker | None = None
     ) -> None:
+        if token_tracker:
+            self.token_tracker = token_tracker
+        if action_tracker:
+            self.action_tracker = action_tracker
+
+        self.tasks[request_id] = QueryResponse(
+            request_id=request_id,
+            status="running",
+            actions=[]
+        )
         task = self.tasks[request_id]
         try:
-            if token_tracker:
-                self.token_tracker = token_tracker
-            if action_tracker:
-                self.action_tracker = action_tracker
                 
             # Process query using tools
             result = await self._process_query(request_id, QueryRequest(query=query))
@@ -84,6 +94,12 @@ class Agent:
             task.final_answer = str(e)
             
     async def _process_query(self, request_id: str, request: QueryRequest) -> str:
+        if request_id not in self.tasks:
+            self.tasks[request_id] = QueryResponse(
+                request_id=request_id,
+                status="running",
+                actions=[]
+            )
         task = self.tasks[request_id]
         try:
             # Initial query processing

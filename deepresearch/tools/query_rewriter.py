@@ -8,11 +8,13 @@ from ..config import settings, modelConfigs
 from ..types import KeywordsResponse, SearchAction
 from ..utils.token_tracker import TokenTracker
 
-client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
-
-async def rewrite_query(action: SearchAction, tracker: Optional[TokenTracker] = None) -> Tuple[List[str], int]:
-    try:
-        prompt = f"""You are an expert Information Retrieval Assistant. Transform user queries into precise keyword combinations with strategic reasoning and appropriate search operators.
+class QueryRewriter:
+    client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+    
+    @staticmethod
+    async def rewrite_query(action: SearchAction, tracker: Optional[TokenTracker] = None) -> Tuple[List[str], int]:
+        try:
+            prompt = f"""You are an expert Information Retrieval Assistant. Transform user queries into precise keyword combinations with strategic reasoning and appropriate search operators.
 
 <rules>
 1. Generate search queries that directly include appropriate operators
@@ -41,48 +43,43 @@ Now, process this query:
 Input Query: {action.searchQuery}
 Intention: {action.think}"""
 
-        response = await client.chat.completions.create(
-            model=modelConfigs["queryRewriter"]["model"],
-            temperature=modelConfigs["queryRewriter"]["temperature"],
-            functions=[{
-                "name": "rewrite_query",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "think": {
-                            "type": "string",
-                            "description": "Strategic reasoning about query complexity and search approach"
-                        },
-                        "queries": {
-                            "type": "array",
-                            "items": {
+            response = await QueryRewriter.client.chat.completions.create(
+                model=modelConfigs["queryRewriter"]["model"],
+                temperature=modelConfigs["queryRewriter"]["temperature"],
+                functions=[{
+                    "name": "rewrite_query",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "think": {
                                 "type": "string",
-                                "description": "Search query, must be less than 30 characters"
+                                "description": "Strategic reasoning about query complexity and search approach"
                             },
-                            "description": "Array of search queries, orthogonal to each other",
-                            "minItems": 1,
-                            "maxItems": 3
-                        }
-                    },
-                    "required": ["think", "queries"]
-                }
-            }],
-            messages=[{"role": "user", "content": prompt}]
-        )
-        
-        try:
+                            "queries": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string",
+                                    "description": "Search query, must be less than 30 characters"
+                                },
+                                "description": "Array of search queries, orthogonal to each other",
+                                "minItems": 1,
+                                "maxItems": 3
+                            }
+                        },
+                        "required": ["think", "queries"]
+                    }
+                }],
+                messages=[{"role": "user", "content": prompt}]
+            )
+
             json_data = json.loads(response.choices[0].message.function_call.arguments)
-        except (json.JSONDecodeError, AttributeError) as e:
-            logging.error("JSON decode error: %s", str(e))
+            logging.info("Query rewriter: %s", json_data["queries"])
+
+            if tracker:
+                await tracker.track_usage("query-rewriter", response)
+
+            return json_data["queries"], response.usage.total_tokens
+
+        except Exception as e:
+            logging.error("Error in query rewriting: %s", str(e))
             raise
-            
-        logging.info("Query rewriter: %s", json_data["queries"])
-        
-        if tracker:
-            await tracker.track_usage("query-rewriter", response)
-            
-        return json_data["queries"], response.usage.total_tokens
-        
-    except Exception as e:
-        logging.error("Error in query rewriting: %s", str(e))
-        raise
