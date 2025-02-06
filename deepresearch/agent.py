@@ -57,10 +57,7 @@ class Agent:
             "type": "progress",
             "trackers": {
                 "tokenUsage": self.token_tracker.get_total_usage(),
-                "tokenBreakdown": {
-                    "agent": self.token_tracker.get_usage("agent"),
-                    "read": self.token_tracker.get_usage("read")
-                },
+                "tokenBreakdown": self.token_tracker.get_usage_breakdown(),
                 "actionState": {
                     "action": "search",
                     "think": "",
@@ -83,10 +80,7 @@ class Agent:
                         "type": "progress",
                         "trackers": {
                             "tokenUsage": self.token_tracker.get_total_usage(),
-                            "tokenBreakdown": {
-                                "agent": self.token_tracker.get_usage("agent"),
-                                "read": self.token_tracker.get_usage("read")
-                            },
+                            "tokenBreakdown": self.token_tracker.get_usage_breakdown(),
                             "actionState": action.model_dump(),
                             "step": len(task.actions),
                             "badAttempts": 0,
@@ -102,10 +96,7 @@ class Agent:
                 "answer": task.final_answer,
                 "trackers": {
                     "tokenUsage": self.token_tracker.get_total_usage(),
-                    "tokenBreakdown": {
-                        "agent": self.token_tracker.get_usage("agent"),
-                        "read": self.token_tracker.get_usage("read")
-                    }
+                    "tokenBreakdown": self.token_tracker.get_usage_breakdown()
                 }
             }
 
