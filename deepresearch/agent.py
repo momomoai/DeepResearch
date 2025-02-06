@@ -68,6 +68,11 @@ class Agent:
         token_tracker: TokenTracker | None = None,
         action_tracker: ActionTracker | None = None
     ) -> None:
+        self.tasks[request_id] = QueryResponse(
+            request_id=request_id,
+            status="running",
+            actions=[]
+        )
         task = self.tasks[request_id]
         try:
             if token_tracker:
