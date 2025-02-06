@@ -8,11 +8,13 @@ from ..config import settings, modelConfigs
 from ..types import ErrorAnalysisResponse
 from ..utils.token_tracker import TokenTracker
 
-client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
-
-async def analyze_steps(diary_context: List[str], tracker: Optional[TokenTracker] = None) -> Tuple[ErrorAnalysisResponse, int]:
-    try:
-        prompt = f"""You are an expert at analyzing search and reasoning processes. Your task is to analyze the given sequence of steps and identify what went wrong in the search process.
+class ErrorAnalyzer:
+    client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+    
+    @staticmethod
+    async def analyze_steps(diary_context: List[str], tracker: Optional[TokenTracker] = None) -> Tuple[ErrorAnalysisResponse, int]:
+        try:
+            prompt = f"""You are an expert at analyzing search and reasoning processes. Your task is to analyze the given sequence of steps and identify what went wrong in the search process.
 
 <rules>
 1. The sequence of actions taken
@@ -30,49 +32,49 @@ Analyze the steps and provide detailed feedback following these guidelines:
 
 {diary_context}"""
 
-        response = await client.chat.completions.create(
-            model=modelConfigs["errorAnalyzer"]["model"],
-            temperature=modelConfigs["errorAnalyzer"]["temperature"],
-            functions=[{
-                "name": "analyze_steps",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "recap": {
-                            "type": "string",
-                            "description": "Recap of the actions taken and the steps conducted"
+            response = await ErrorAnalyzer.client.chat.completions.create(
+                model=modelConfigs["errorAnalyzer"]["model"],
+                temperature=modelConfigs["errorAnalyzer"]["temperature"],
+                functions=[{
+                    "name": "analyze_steps",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "recap": {
+                                "type": "string",
+                                "description": "Recap of the actions taken and the steps conducted"
+                            },
+                            "blame": {
+                                "type": "string",
+                                "description": "Which action or the step was the root cause of the answer rejection"
+                            },
+                            "improvement": {
+                                "type": "string",
+                                "description": "Suggested key improvement for the next iteration, do not use bullet points, be concise and hot-take vibe."
+                            }
                         },
-                        "blame": {
-                            "type": "string",
-                            "description": "Which action or the step was the root cause of the answer rejection"
-                        },
-                        "improvement": {
-                            "type": "string",
-                            "description": "Suggested key improvement for the next iteration, do not use bullet points, be concise and hot-take vibe."
-                        }
-                    },
-                    "required": ["recap", "blame", "improvement"]
-                }
-            }],
-            messages=[{"role": "user", "content": prompt}]
-        )
+                        "required": ["recap", "blame", "improvement"]
+                    }
+                }],
+                messages=[{"role": "user", "content": prompt}]
+            )
+            
+            try:
+                json_data = json.loads(response.choices[0].message.function_call.arguments)
+            except (json.JSONDecodeError, AttributeError) as e:
+                logging.error("JSON decode error: %s", str(e))
+                raise
+            
+            logging.info("Error analysis: %s", {
+                "is_valid": not json_data["blame"],
+                "reason": json_data["blame"] or "No issues found"
+            })
+            
+            if tracker:
+                await tracker.track_usage("error-analyzer", response)
+            
+            return ErrorAnalysisResponse(**json_data), response.usage.total_tokens
         
-        try:
-            json_data = json.loads(response.choices[0].message.function_call.arguments)
-        except (json.JSONDecodeError, AttributeError) as e:
-            logging.error("JSON decode error: %s", str(e))
+        except Exception as e:
+            logging.error("Error in error analysis: %s", str(e))
             raise
-            
-        logging.info("Error analysis: %s", {
-            "is_valid": not json_data["blame"],
-            "reason": json_data["blame"] or "No issues found"
-        })
-        
-        if tracker:
-            await tracker.track_usage("error-analyzer", response)
-            
-        return ErrorAnalysisResponse(**json_data), response.usage.total_tokens
-        
-    except Exception as e:
-        logging.error("Error in error analysis: %s", str(e))
-        raise

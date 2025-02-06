@@ -74,7 +74,7 @@ Answer: {answer}"""
             except (json.JSONDecodeError, AttributeError) as e:
                 logging.error("JSON decode error: %s", str(e))
                 raise
-                
+            
             logging.info("Evaluation: %s", {
                 "definitive": json_data["is_definitive"],
                 "reason": json_data["reasoning"]
@@ -82,9 +82,9 @@ Answer: {answer}"""
             
             if tracker:
                 await tracker.track_usage("evaluator", response)
-                    
+            
             return EvaluationResponse(**json_data), response.usage.total_tokens
-                
+        
         except Exception as e:
             logging.error("Error in answer evaluation: %s", str(e))
             raise
