@@ -90,6 +90,12 @@ class Agent:
             task.final_answer = str(e)
             
     async def _process_query(self, request_id: str, request: QueryRequest) -> str:
+        if request_id not in self.tasks:
+            self.tasks[request_id] = QueryResponse(
+                request_id=request_id,
+                status="running",
+                actions=[]
+            )
         task = self.tasks[request_id]
         try:
             # Initial query processing
