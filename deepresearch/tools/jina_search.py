@@ -23,19 +23,24 @@ class JinaSearch:
                     json={"query": query}
                 )
                 response_data = response.json()
-                if response.status_code == 404:
+                logging.info("Jina API response status: %d", response.status_code)
+                logging.info("Jina API response data: %s", response_data)
+                
+                if response.status_code != 200:
                     response_obj = SearchResponse(
-                        code=404,
-                        status=404,
+                        code=response.status_code,
+                        status=response.status_code,
                         data=[],
-                        message=response_data.get('detail', 'Not Found')
+                        message=response_data.get('detail', 'Error'),
+                        readableMessage=f"Search failed with status {response.status_code}"
                     )
-                else:
-                    response_obj = SearchResponse(**response_data)
-                    if response_obj.code == 402:
-                        raise ValueError(response_obj.readableMessage or "Insufficient balance")
-                    if not response_obj.data:
-                        raise ValueError("Invalid response data")
+                    return response_obj, len(query)  # Return query length as token count for failed searches
+                
+                response_obj = SearchResponse(**response_data)
+                if response_obj.code == 402:
+                    raise ValueError(response_obj.readableMessage or "Insufficient balance")
+                if not response_obj.data:
+                    raise ValueError("Invalid response data")
                     
                 logging.info("Jina search: %s", {
                     "query": query,
