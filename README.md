@@ -42,8 +42,6 @@ export BRAVE_API_KEY=...     # Required if using SEARCH_PROVIDER=brave
 
 # Optional Configuration
 export STEP_SLEEP=1000  # Event stream delay in milliseconds (default: 100)
-export GEMINI_API_KEY=...  # For future Gemini support
-export GOOGLE_API_KEY=...  # For future Google services support
 
 ### Installation
 
@@ -68,7 +66,7 @@ poetry install
 ## Usage
 
 ```bash
-poetry run python -m deepresearch.main "what is the context length of readerlm-v2?"
+env $(grep -v '^#' .env.local | xargs) poetry run uvicorn deepresearch.main:app --host 0.0.0.0 --port 3001
 ```
 
 ## Demo
