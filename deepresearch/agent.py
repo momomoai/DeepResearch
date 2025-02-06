@@ -8,7 +8,8 @@ from openai.types.chat import ChatCompletion
 from .config import settings, modelConfigs
 from .types import (
     QueryRequest, QueryResponse, BaseAction,
-    ActionType, SearchAction, AnswerAction
+    ActionType, SearchAction, AnswerAction,
+    Reference, SearchResult
 )
 from .utils.token_tracker import TokenTracker
 from .utils.action_tracker import ActionTracker
@@ -82,6 +83,7 @@ class Agent:
         token_tracker: TokenTracker | None = None,
         action_tracker: ActionTracker | None = None
     ) -> None:
+        print(f"Starting process_query for request_id: {request_id}")
         if token_tracker:
             self.token_tracker = token_tracker
         if action_tracker:
@@ -94,12 +96,14 @@ class Agent:
         )
         task = self.tasks[request_id]
         try:
-                
-            # Process query using tools
+            print(f"Processing query: {query}")
             result = await self._process_query(request_id, QueryRequest(query=query))
+            print(f"Got result: {result}")
             task.final_answer = result
             task.status = "completed"
+            print("Query processing completed")
         except Exception as e:
+            print(f"Error in process_query: {str(e)}")
             task.status = "error"
             task.final_answer = str(e)
             
@@ -112,7 +116,6 @@ class Agent:
             )
         task = self.tasks[request_id]
         try:
-            print("Starting query processing...")
             # Initial query processing
             response = await self.client.chat.completions.create(
                 model=modelConfigs["evaluator"]["model"],
@@ -121,28 +124,34 @@ class Agent:
             )
             answer = response.choices[0].message.content
             
-            # Add search action
+            # Add search action with token tracking
             search_action = SearchAction(
                 action=ActionType.SEARCH,
                 think=f"Searching to verify: {request.query}",
                 searchQuery=request.query
             )
             task.actions.append(search_action)
+            self.token_tracker.add_usage("agent", len(request.query))
+            
+            # Perform search
+            search_results = await self.search(request.query)
+            if search_results:
+                self.token_tracker.add_usage("read", sum(len(r.content) for r in search_results))
             
             # Add answer action
             answer_action = AnswerAction(
                 action=ActionType.ANSWER,
-                think="Based on the search results",
+                think="Based on the search results and verification",
                 answer=answer,
-                references=[]
+                references=[Reference(exactQuote=r.content[:100], url=r.url) for r in search_results] if search_results else []
             )
             task.actions.append(answer_action)
+            self.token_tracker.add_usage("agent", len(answer))
             
             task.final_answer = answer
             task.status = "completed"
             return answer
         except Exception as e:
-            print(f"Error in _process_query: {str(e)}")
             task.status = "error"
             task.final_answer = str(e)
             raise
