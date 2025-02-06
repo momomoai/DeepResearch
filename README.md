@@ -36,14 +36,14 @@ export JINA_API_KEY=jina_...  # free Jina API key, get from https://jina.ai/read
 
 # Install with Poetry
 git clone https://github.com/momomoai/DeepResearch.git
-cd DeepResearch/deepresearch-py
+cd DeepResearch
 poetry install
 ```
 
 ## Usage
 
 ```bash
-poetry run python -m deepresearch.main "your query here"
+poetry run python -m deepresearch.main "what is the context length of readerlm-v2?"
 ```
 
 ## Demo

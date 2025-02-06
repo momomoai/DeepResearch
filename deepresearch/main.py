@@ -32,6 +32,18 @@ class QueryBody(BaseModel):
 trackers: Dict[str, Dict[str, Any]] = {}
 
 def create_progress_message(request_id: str, budget: Optional[int] = None) -> StreamMessage:
+    """创建进度消息。
+    
+    Args:
+        request_id (str): 请求 ID
+        budget (Optional[int]): token 预算限制，默认为 None
+    
+    Returns:
+        StreamMessage: 包含进度信息的消息对象，包括：
+            - 当前步骤信息
+            - 总步骤数
+            - 预算使用情况
+    """
     context = trackers[request_id]
     token_tracker = context["token_tracker"]
     action_tracker = context["action_tracker"]
@@ -51,6 +63,17 @@ def create_progress_message(request_id: str, budget: Optional[int] = None) -> St
     )
 
 async def store_task_result(request_id: str, result: StepAction) -> None:
+    """存储任务结果到文件系统。
+    
+    Args:
+        request_id (str): 请求 ID
+        result (StepAction): 任务结果对象
+    
+    Note:
+        - 在当前工作目录下创建 tasks 目录
+        - 以 JSON 格式保存结果
+        - 文件名为 {request_id}.json
+    """
     task_dir = Path.cwd() / "tasks"
     task_dir.mkdir(exist_ok=True)
     
@@ -59,6 +82,25 @@ async def store_task_result(request_id: str, result: StepAction) -> None:
 
 @app.post("/api/v1/query")
 async def query(request: QueryBody) -> Dict[str, str]:
+    """处理查询请求的入口接口。
+    
+    Args:
+        request (QueryBody): 查询请求体，包含：
+            - q (str): 必填，查询字符串
+            - budget (Optional[int]): 可选，token 预算限制
+            - maxBadAttempt (Optional[int]): 可选，最大失败尝试次数
+    
+    Returns:
+        Dict[str, str]: 包含请求 ID 的字典，格式为 {"requestId": "<timestamp>"}
+    
+    Raises:
+        HTTPException: 当查询字符串为空时抛出 400 错误
+    
+    Note:
+        - 生成基于时间戳的唯一请求 ID
+        - 为每个请求创建 token 和 action 追踪器
+        - 异步启动查询处理任务
+    """
     if not request.q:
         raise HTTPException(status_code=400, detail="Query (q) is required")
     
@@ -85,6 +127,25 @@ async def query(request: QueryBody) -> Dict[str, str]:
 
 @app.get("/api/v1/stream/{request_id}")
 async def stream(request_id: str, request: Request) -> EventSourceResponse:
+    """处理实时流式事件的接口。
+    
+    Args:
+        request_id (str): 请求 ID，由 query 接口生成
+        request (Request): FastAPI 请求对象
+    
+    Returns:
+        EventSourceResponse: SSE 事件流响应
+    
+    Raises:
+        HTTPException: 当请求 ID 无效时抛出 404 错误
+    
+    Note:
+        - 建立 SSE 连接后发送初始确认消息
+        - 流式返回处理过程中的事件
+        - 支持客户端断开连接检测
+        - 发生错误时返回错误信息和追踪器状态
+        - 完成后自动清理追踪器资源
+    """
     if request_id not in trackers:
         raise HTTPException(status_code=404, detail="Invalid request ID")
     
@@ -130,6 +191,21 @@ async def stream(request_id: str, request: Request) -> EventSourceResponse:
 
 @app.get("/api/v1/task/{request_id}")
 async def get_task(request_id: str) -> Dict:
+    """获取指定任务的完整结果。
+    
+    Args:
+        request_id (str): 请求 ID，由 query 接口生成
+    
+    Returns:
+        Dict: 任务的完整结果数据
+    
+    Raises:
+        HTTPException: 当任务文件不存在时抛出 404 错误
+    
+    Note:
+        - 从本地文件系统读取任务结果
+        - 结果以 JSON 格式存储在 tasks 目录下
+    """
     task_path = Path.cwd() / "tasks" / f"{request_id}.json"
     try:
         return json.loads(task_path.read_text())
