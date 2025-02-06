@@ -163,6 +163,7 @@ class Agent:
             )
             task.actions.append(search_action)
             self.token_tracker.add_usage("agent", len(request.query))
+            print(f"Token usage after query: {self.token_tracker.get_usage_breakdown()}")
             
             # Perform search
             try:
@@ -185,6 +186,7 @@ class Agent:
             )
             task.actions.append(answer_action)
             self.token_tracker.add_usage("agent", len(answer))
+            print(f"Final token usage: {self.token_tracker.get_usage_breakdown()}")
             
             task.final_answer = answer
             task.status = "completed"
