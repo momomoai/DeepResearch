@@ -165,8 +165,12 @@ class Agent:
             self.token_tracker.add_usage("agent", len(request.query))
             
             # Perform search
-            search_response, search_tokens = await self.search(request.query, self.token_tracker)
-            search_results = search_response.data if search_response.data else []
+            try:
+                search_response, search_tokens = await self.search(request.query, self.token_tracker)
+                search_results = search_response.data if search_response.data else []
+            except Exception as e:
+                print(f"Search failed: {str(e)}")
+                search_results = []
             
             # Add answer action
             answer_action = AnswerAction(
