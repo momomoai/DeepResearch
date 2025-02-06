@@ -68,6 +68,11 @@ class Agent:
         token_tracker: TokenTracker | None = None,
         action_tracker: ActionTracker | None = None
     ) -> None:
+        if token_tracker:
+            self.token_tracker = token_tracker
+        if action_tracker:
+            self.action_tracker = action_tracker
+
         self.tasks[request_id] = QueryResponse(
             request_id=request_id,
             status="running",
@@ -75,10 +80,6 @@ class Agent:
         )
         task = self.tasks[request_id]
         try:
-            if token_tracker:
-                self.token_tracker = token_tracker
-            if action_tracker:
-                self.action_tracker = action_tracker
                 
             # Process query using tools
             result = await self._process_query(request_id, QueryRequest(query=query))
