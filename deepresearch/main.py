@@ -1,5 +1,6 @@
 import asyncio
 import json
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional, AsyncGenerator, Any
@@ -211,3 +212,33 @@ async def get_task(request_id: str) -> Dict:
         return json.loads(task_path.read_text())
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Task not found")
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print("Usage: python -m deepresearch.main 'your query'")
+        sys.exit(1)
+    
+    query = sys.argv[1]
+    agent = Agent()
+    request_id = str(int(datetime.now().timestamp() * 1000))
+    
+    token_tracker = TokenTracker()
+    action_tracker = ActionTracker()
+    
+    async def process_and_stream():
+        process_task = asyncio.create_task(agent.process_query(
+            request_id=request_id,
+            query=query,
+            token_tracker=token_tracker,
+            action_tracker=action_tracker
+        ))
+        
+        async for event in agent.stream_events(request_id):
+            if isinstance(event, dict):
+                print(json.dumps(event, indent=2))
+            else:
+                print(json.dumps(event.model_dump(), indent=2))
+        
+        await process_task
+    
+    asyncio.run(process_and_stream())
