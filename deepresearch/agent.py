@@ -165,16 +165,15 @@ class Agent:
             self.token_tracker.add_usage("agent", len(request.query))
             
             # Perform search
-            search_results = await self.search(request.query)
-            if search_results:
-                self.token_tracker.add_usage("read", sum(len(r.content) for r in search_results))
+            search_response, search_tokens = await self.search(request.query, self.token_tracker)
+            search_results = search_response.data if search_response.data else []
             
             # Add answer action
             answer_action = AnswerAction(
                 action=ActionType.ANSWER,
                 think="Based on the search results and verification",
                 answer=answer,
-                references=[Reference(exactQuote=r.content[:100], url=r.url) for r in search_results] if search_results else []
+                references=[Reference(exactQuote=result.content[:100], url=result.url) for result in search_results]
             )
             task.actions.append(answer_action)
             self.token_tracker.add_usage("agent", len(answer))
