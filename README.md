@@ -25,19 +25,44 @@ flowchart LR
 
 ## Install
 
-We use OpenAI GPT-4o for LLM and [Jina Reader](https://jina.ai/reader) for searching and reading webpages.
+We use OpenAI GPT-4o or DeepSeek-V3 for LLM and support both [Jina Reader](https://jina.ai/reader) and Brave Search for searching and reading webpages.
 
+### Environment Variables
+Required:
 ```bash
-# Get API keys
+# OpenAI Configuration
 export OPENAI_API_KEY=...  # OpenAI API key
 export OPENAI_BASE_URL=...  # OpenAI API base URL (optional)
-export OPENAI_MODEL=gpt-4o  # OpenAI model name
-export JINA_API_KEY=jina_...  # free Jina API key, get from https://jina.ai/reader
+export OPENAI_MODEL=deepseek-ai/DeepSeek-V3  # Or any other supported model
 
-# Install with Poetry
+# Search Provider Configuration
+export JINA_API_KEY=jina_...  # Get from https://jina.ai/reader
+export SEARCH_PROVIDER=jina  # Options: 'jina' or 'brave'
+export BRAVE_API_KEY=...     # Required if using SEARCH_PROVIDER=brave
+
+# Optional Configuration
+export STEP_SLEEP=1000  # Event stream delay in milliseconds (default: 100)
+export GEMINI_API_KEY=...  # For future Gemini support
+export GOOGLE_API_KEY=...  # For future Google services support
+
+### Installation
+
+1. Clone the repository:
+```bash
 git clone https://github.com/momomoai/DeepResearch.git
 cd DeepResearch
+```
+
+2. Install dependencies with Poetry:
+```bash
+# Install Poetry if not already installed
+curl -sSL https://install.python-poetry.org | python3 -
 poetry install
+```
+
+3. Configure environment:
+- Copy .env.example to .env.local
+- Fill in required environment variables
 ```
 
 ## Usage
@@ -132,6 +157,27 @@ data: {"type":"progress","trackers":{"tokenUsage":74950,"tokenBreakdown":{"agent
 data: {"type":"progress","trackers":{"tokenUsage":88096,"tokenBreakdown":{"agent":77777,"read":10319},"actionState":{"action":"search","think":"The provided text mentions several investors in Jina AI's funding rounds but doesn't specify ownership percentages.  A search focusing on equity stakes and ownership percentages held by each investor will provide the necessary information to answer the main question.","URLTargets":[],"answer":"","questionsToAnswer":[],"references":[],"searchQuery":"Jina AI investor equity percentage ownership stake"},"step":8,"badAttempts":0,"gaps":[]}}
 ```
 
+## Troubleshooting
+
+### Common Issues
+
+1. Authentication Errors
+- Verify API keys are correctly set in environment variables
+- Check OPENAI_BASE_URL if using a custom endpoint
+- Ensure JINA_API_KEY or BRAVE_API_KEY matches SEARCH_PROVIDER setting
+
+2. Search Provider Issues
+- SEARCH_PROVIDER must be either 'jina' or 'brave'
+- Corresponding API key must be set for chosen provider
+
+3. Event Stream Delays
+- Adjust STEP_SLEEP value (in milliseconds) if events are too slow/fast
+- Default is 100ms, increase for slower updates or decrease for faster updates
+
+4. Docker Issues
+- Ensure all environment variables are properly set in docker-compose.yml
+- Check container logs for specific error messages
+
 ## Docker
 
 ### Build Docker Image
@@ -146,8 +192,10 @@ To run the Docker container, use the following command:
 docker run -p 3000:3000 \
   --env OPENAI_API_KEY=your_openai_api_key \
   --env OPENAI_BASE_URL=your_openai_base_url \
-  --env OPENAI_MODEL=gpt-4o \
+  --env OPENAI_MODEL=deepseek-ai/DeepSeek-V3 \
   --env JINA_API_KEY=your_jina_api_key \
+  --env SEARCH_PROVIDER=jina \
+  --env STEP_SLEEP=1000 \
   deepresearch:latest
 ```
 
