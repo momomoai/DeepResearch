@@ -8,11 +8,13 @@ from ..config import settings, modelConfigs
 from ..types import DedupResponse
 from ..utils.token_tracker import TokenTracker
 
-client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
-
-async def dedup_queries(new_queries: List[str], existing_queries: List[str], tracker: Optional[TokenTracker] = None) -> Tuple[List[str], int]:
-    try:
-        prompt = f"""You are an expert in semantic similarity analysis. Given a set of queries (setA) and a set of queries (setB)
+class Deduplicator:
+    client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+    
+    @staticmethod
+    async def dedup_queries(new_queries: List[str], existing_queries: List[str], tracker: Optional[TokenTracker] = None) -> Tuple[List[str], int]:
+        try:
+            prompt = f"""You are an expert in semantic similarity analysis. Given a set of queries (setA) and a set of queries (setB)
 
 <rules>
 Function FilterSetA(setA, setB, threshold):
@@ -62,7 +64,7 @@ Now with threshold set to 0.2; run FilterSetA on the following:
 SetA: {new_queries}
 SetB: {existing_queries}"""
 
-        response = await client.chat.completions.create(
+        response = await Deduplicator.client.chat.completions.create(
             model=modelConfigs["dedup"]["model"],
             temperature=modelConfigs["dedup"]["temperature"],
             functions=[{
@@ -89,19 +91,14 @@ SetB: {existing_queries}"""
             messages=[{"role": "user", "content": prompt}]
         )
         
-        try:
             json_data = json.loads(response.choices[0].message.function_call.arguments)
-        except (json.JSONDecodeError, AttributeError) as e:
-            logging.error("JSON decode error: %s", str(e))
+            logging.info("Dedup: %s", json_data["unique_queries"])
+            
+            if tracker:
+                await tracker.track_usage("dedup", response)
+            
+            return json_data["unique_queries"], response.usage.total_tokens
+        
+        except Exception as e:
+            logging.error("Error in deduplication analysis: %s", str(e))
             raise
-            
-        logging.info("Dedup: %s", json_data["unique_queries"])
-        
-        if tracker:
-            await tracker.track_usage("dedup", response)
-            
-        return json_data["unique_queries"], response.usage.total_tokens
-        
-    except Exception as e:
-        logging.error("Error in deduplication analysis: %s", str(e))
-        raise
